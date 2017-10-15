@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	capacity   = "/sys/class/power_supply/BAT0/capacity"
-	status     = "/sys/class/power_supply/BAT0/status"
+	CAPACITY   = "/sys/class/power_supply/BAT0/capacity"
+	STATUS     = "/sys/class/power_supply/BAT0/status"
 	hibernated = iota
 	plannedHibernate
 	notifyedLow
@@ -41,21 +41,13 @@ var (
 )
 
 func main() {
-	// check Battery state every 5 sec
-	ticker := time.NewTicker(1 * time.Minute)
-	quit := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				check()
-			case <-quit:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
 
+	quit := scheduleJob()
+
+	listenSysCall(quit)
+}
+
+func listenSysCall(quit chan struct{}) {
 	// listen to syscall
 	signal_chan := make(chan os.Signal, 1)
 	signal.Notify(signal_chan,
@@ -103,52 +95,57 @@ func main() {
 	os.Exit(code)
 }
 
+func scheduleJob() chan struct{} {
+	// check Battery state every 5 sec
+	ticker := time.NewTicker(1 * time.Minute)
+	quit := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				check()
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
+	}()
+	return quit
+}
+
 func check() {
-	c, s := getInfos()
+	capacity, isCharging := getInfos()
 
 	switch {
-	case c == 100:
-		switch s {
-		case "Charging":
-			if state < notifyedTop {
-				notify("Please unplug you battery to preserve it", false)
-				state = notifyedTop
-			}
-		case "Discharging":
+	case capacity == 100:
+		if isCharging && state < notifyedTop {
+			notify("Please unplug you battery to preserve it", false)
+			state = notifyedTop
+		} else {
 			state = good
 		}
-	case c < 10:
-		switch s {
-		case "Charging":
+	case capacity < 10:
+		if isCharging {
 			state = good
-		case "Discharging":
-			if state == plannedHibernate {
-				state = hibernated
-				hibernate()
-			} else {
-				notify(
-					"Battery is under 10%, going to hibernate in 1min", true)
-				state = plannedHibernate
-			}
+		} else if state == plannedHibernate {
+			state = hibernated
+			hibernate()
+		} else {
+			notify("Battery is under 10%, going to hibernate in 1min", true)
+			state = plannedHibernate
 		}
-	case c < 20:
-		switch s {
-		case "Charging":
+	case capacity < 20:
+		if isCharging {
 			state = good
-		case "Discharging":
-			if state != notifyedLow {
-				notify("Battery is under 20%, please plug it", true)
-				state = notifyedLow
-			}
+		} else if state != notifyedLow {
+			notify("Battery is under 20%, please plug it", true)
+			state = notifyedLow
 		}
-	case c > 80:
-		switch s {
-		case "Charging":
-			if state != notifyedHigh {
-				notify("Please unplug you battery to preserve it", false)
-				state = notifyedHigh
-			}
-		case "Discharging":
+	case capacity > 80:
+		if isCharging && state != notifyedHigh {
+			notify("Please unplug you battery to preserve it", false)
+			state = notifyedHigh
+		} else {
 			state = good
 		}
 	}
@@ -177,22 +174,25 @@ func hibernate() {
 	}
 }
 
-func getInfos() (c int, s string) {
-	var cap []byte
-	var stat []byte
+func getInfos() (capacity int, isCharging bool) {
+	var c []byte
+	var s []byte
 	var err error
 
-	if cap, err = ioutil.ReadFile(capacity); err != nil {
+	if c, err = ioutil.ReadFile(CAPACITY); err != nil {
 		log.Fatal(err)
 	}
-	if stat, err = ioutil.ReadFile(status); err != nil {
+	if s, err = ioutil.ReadFile(STATUS); err != nil {
 		log.Fatal(err)
 	}
-	if c, err = strconv.Atoi(string(cap[:len(cap)-1])); err != nil {
+	if capacity, err = strconv.Atoi(string(c[:len(c)-1])); err != nil {
 		log.Fatal(err)
+	}
+	if s[0] == 'C' {
+		isCharging = true
+	} else {
+		isCharging = false
 	}
 
-	stat = stat[:len(stat)-1]
-
-	return c, string(stat)
+	return capacity, isCharging
 }
