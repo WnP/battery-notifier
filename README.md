@@ -1,5 +1,7 @@
 # battery-notifier
 
+**Development Status**: Planning
+
 This is a simple app which notify your laptop battery state, here are the
 steps with corresponding notification:
 
@@ -11,7 +13,8 @@ steps with corresponding notification:
 ## Dependencies
 
 - [libnotify](https://developer.gnome.org/libnotify/) notify-send
-- [zzz](https://github.com/voidlinux/void-runit/blob/master/zzz) to manage hibernate
+- [zzz](https://github.com/voidlinux/void-runit/blob/master/zzz)
+  to manage hibernate
 
 ## Install
 
@@ -24,3 +27,12 @@ go get github.com/WnP/battery-notifier
 ```
 echo 'battery-notifier &' >> ~/.xinitrc
 ```
+
+## Roadmap
+
+- [ ] Units Tests
+- [ ] Providing icons
+- [ ] OSX compatibility
+- [ ] Windows compatibility
+
+Pull requests are welcome.
