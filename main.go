@@ -123,6 +123,7 @@ func check() {
 			state = good
 		case "Discharging":
 			if state == plannedHibernate {
+				state = hibernated
 				hibernate()
 			} else {
 				notify(
@@ -135,13 +136,15 @@ func check() {
 		case "Charging":
 			state = good
 		case "Discharging":
-			notify("Battery is under 20%, please plug it", true)
-			state = notifyedLow
+			if state != notifyedLow {
+				notify("Battery is under 20%, please plug it", true)
+				state = notifyedLow
+			}
 		}
 	case c > 80:
 		switch s {
 		case "Charging":
-			if state < notifyedHigh {
+			if state != notifyedHigh {
 				notify("Please unplug you battery to preserve it", false)
 				state = notifyedHigh
 			}
