@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	CAPACITY   = "/sys/class/power_supply/BAT0/capacity"
-	STATUS     = "/sys/class/power_supply/BAT0/status"
+	capFile    = "/sys/class/power_supply/BAT0/capacity"
+	statusFile = "/sys/class/power_supply/BAT0/status"
 	hibernated = iota
 	plannedHibernate
 	notifyedLow
@@ -49,17 +49,17 @@ func main() {
 
 func listenSysCall(quit chan struct{}) {
 	// listen to syscall
-	signal_chan := make(chan os.Signal, 1)
-	signal.Notify(signal_chan,
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan,
 		syscall.SIGHUP,
 		syscall.SIGINT,
 		syscall.SIGTERM,
 		syscall.SIGQUIT)
 
-	exit_chan := make(chan int)
+	exitChan := make(chan int)
 	go func() {
 		for {
-			s := <-signal_chan
+			s := <-signalChan
 			switch s {
 			// kill -SIGHUP XXXX
 			case syscall.SIGHUP:
@@ -69,29 +69,29 @@ func listenSysCall(quit chan struct{}) {
 			case syscall.SIGINT:
 				fmt.Println("Bye")
 				close(quit)
-				exit_chan <- 0
+				exitChan <- 0
 
 			// kill -SIGTERM XXXX
 			case syscall.SIGTERM:
 				fmt.Println("force stop")
 				close(quit)
-				exit_chan <- 0
+				exitChan <- 0
 
 			// kill -SIGQUIT XXXX
 			case syscall.SIGQUIT:
 				fmt.Println("stop and core dump")
 				close(quit)
-				exit_chan <- 0
+				exitChan <- 0
 
 			default:
 				fmt.Println("Unknown signal.")
 				close(quit)
-				exit_chan <- 1
+				exitChan <- 1
 			}
 		}
 	}()
 
-	code := <-exit_chan
+	code := <-exitChan
 	os.Exit(code)
 }
 
@@ -179,10 +179,10 @@ func getInfos() (capacity int, isCharging bool) {
 	var s []byte
 	var err error
 
-	if c, err = ioutil.ReadFile(CAPACITY); err != nil {
+	if c, err = ioutil.ReadFile(capFile); err != nil {
 		log.Fatal(err)
 	}
-	if s, err = ioutil.ReadFile(STATUS); err != nil {
+	if s, err = ioutil.ReadFile(statusFile); err != nil {
 		log.Fatal(err)
 	}
 	if capacity, err = strconv.Atoi(string(c[:len(c)-1])); err != nil {
